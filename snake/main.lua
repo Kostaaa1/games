@@ -1,26 +1,29 @@
 local snake = require("snake")
 local food = require("food")
+local score = require("score")
 
 local game = {
 	window = {
 		title = "Snake",
-		w = 640,
-		h = 640
+		screenSize = 640
 	}
 }
 
 function love.load()
 	love.window.setTitle(game.window.title)
 
-	local ww , wh = game.window.w, game.window.h
-	love.window.setMode(ww, wh)
+	local screenSize = game.window.screenSize
+	love.window.setMode(screenSize, screenSize)
 
-	snake:load(ww, wh)
-	food:load(ww)
+	score:load(screenSize)
+	snake:load(screenSize)
+	food:load(screenSize, snake.size)
+	snake:setFood(food)
+	snake:setScore(score)
 end
 
 local loop_cooldown = 0
-local max_loop_cooldown = 0.5
+local max_loop_cooldown = 0.1
 
 function love.update(dt)
 	loop_cooldown = loop_cooldown + dt
@@ -33,18 +36,19 @@ end
 function love.draw()
 	food:draw()
 	snake:draw()
+	score:draw()
 end
 
 function love.keypressed(key)
 	if key == "escape" then
 		love.event.quit()
-	elseif key == "w" then
+	elseif key == "w" or key == "up" then
 		snake:setDirection("up")
-	elseif key == "a" then
+	elseif key == "a" or key == "left" then
 		snake:setDirection("left")
-	elseif key == "s" then
+	elseif key == "s" or key == "down" then
 		snake:setDirection("down")
-	elseif key == "d" then
+	elseif key == "d" or key == "right" then
 		snake:setDirection("right")
 	end
 end
