@@ -1,35 +1,60 @@
 ---@class food
----@field x number
----@field y number
+---@field pos number
 ---@field img love.Image
 local food = {
 	size = 0,
-	x = 0,
-	y = 0,
+	pos = 0,
 	img = love.graphics.newImage("/assets/apple.png"),
 }
 
 local screenSize = 0
 
----@param winW number 
 ---@param size number
-function food:load(winW, size)
+---@param boundary number
+function food:load(size, boundary)
 	math.randomseed(os.time())
-	screenSize = winW
 	self.size = size
-	food:update()
+	screenSize = boundary
+	self:update()
 end
 
--- Bad solution, what if it spawns on the snake tail. it should always spawn at empty
-function food:update()
-	local r = math.random(0, screenSize)
-	local pos = math.floor(r / self.size) * self.size
-	food.x = pos
-	food.y = pos
+---@param tailSet table<number, {x: number, y: number}>
+function food:update(tailSet)
+	local pos = self:_generatePosition()
+	if tailSet == nil then
+		self.pos = pos
+		return
+	end
+
+	local validPos = false
+
+	while not validPos do
+		validPos = true
+		for _, tail in ipairs(tailSet) do
+			if pos == tail.x and pos == tail.y then
+				validPos = false
+				pos = self:_generatePosition()
+				break
+			end
+		end
+	end
+
+	self.pos = pos
 end
+
+function food:_generatePosition()
+	local r = math.random(0, screenSize)
+	return math.floor(r / self.size) * self.size
+end
+
+-- ---@param tailSet table<number, {x: number, y: number}>
+-- function food:update(tailSet)
+-- 	local pos = self:_generatePosition()
+-- 	food.pos = pos
+-- end
 
 function food:draw()
-	love.graphics.draw(self.img, self.x, self.y, 0, 1, 1, self.size/2, self.size/2)
+	love.graphics.draw(self.img, self.pos, self.pos, 0, 1, 1, self.size/2, self.size/2)
 end
 
 return food
