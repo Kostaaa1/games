@@ -12,15 +12,16 @@ local screenSize = 0
 ---@param size number
 ---@param boundary number
 function food:load(size, boundary)
+	screenSize = boundary
 	math.randomseed(os.time())
 	self.size = size
-	screenSize = boundary
 	self:update()
 end
 
 ---@param tailSet table<number, {x: number, y: number}>
 function food:update(tailSet)
-	local pos = self:_generatePosition()
+	local pos = self:randPos()
+
 	if tailSet == nil then
 		self.pos = pos
 		return
@@ -33,7 +34,7 @@ function food:update(tailSet)
 		for _, tail in ipairs(tailSet) do
 			if pos == tail.x and pos == tail.y then
 				validPos = false
-				pos = self:_generatePosition()
+				pos = self:randPos()
 				break
 			end
 		end
@@ -42,16 +43,10 @@ function food:update(tailSet)
 	self.pos = pos
 end
 
-function food:_generatePosition()
+function food:randPos()
 	local r = math.random(0, screenSize)
 	return math.floor(r / self.size) * self.size
 end
-
--- ---@param tailSet table<number, {x: number, y: number}>
--- function food:update(tailSet)
--- 	local pos = self:_generatePosition()
--- 	food.pos = pos
--- end
 
 function food:draw()
 	love.graphics.draw(self.img, self.pos, self.pos, 0, 1, 1, self.size/2, self.size/2)

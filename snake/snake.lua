@@ -10,13 +10,12 @@ local snake = {
 	direction = "right",
 	tails = {},
 	dead = false,
+	locked = false,
 	food = nil,
 	score = nil,
-	lockMovement = false,
+	screenSize = 0,
 }
-
 local tailSet = {}
-local screenSize = 0
 local image = {
 	head = love.graphics.newImage("/assets/images/snake_head.png"),
 	tail = love.graphics.newImage("/assets/images/snake_tail.png"),
@@ -27,13 +26,13 @@ local image = {
 	snakeHeadTongue = love.graphics.newImage("/assets/images/snake_head_tongue.png"),
 }
 
----@param size number
-function snake:load(size)
-	screenSize = size
-
-	local startX = size / 2
-	local startY = size / 2
-	self.size = size / 20
+---@param tailSize number
+---@param screenSize number
+function snake:load(tailSize, screenSize)
+	local startX = screenSize / 2
+	local startY = screenSize / 2
+	self.size = screenSize / 20
+	self.screenSize = screenSize
 
 	snake:_insertHead({x = startX, y = startY})
 	snake:_insertHead({x = startX + self.size, y = startY})
@@ -44,72 +43,48 @@ function snake:update(dt)
 	if self.dead then return end
 
 	local head = self.tails[1]
+	local value = self.size
 
 	if self.direction == "left" then
-		snake:_moveLeft(head)
+		snake:_moveLeft(value, head)
 	elseif self.direction == "right" then
-		snake:_moveRight(head)
+		snake:_moveRight(value, head)
 	elseif self.direction == "up" then
-		snake:_moveUp(head)
+		snake:_moveUp(value, head)
 	elseif self.direction == "down" then
-		snake:_moveDown(head)
+		snake:_moveDown(value, head)
 	end
 
 	snake:_eat()
+	self.locked = false
 end
 
 function snake:draw()
-	for index, value in ipairs(self.tails) do
-		love.graphics.setColor(0, 255, 0)
-		love.graphics.rectangle("fill", value.x, value.y, self.size, self.size)
-		love.graphics.setColor(0, 0, 0)
-		love.graphics.rectangle("line", value.x, value.y, self.size, self.size)
+	for index, tail in ipairs(self.tails) do
+		local position = nil
+		local img = nil
 
-		-- if index == 1 then
-		-- 	local w = image.head:getWidth()
-		-- 	local h = image.head:getHeight()
-		-- 	love.graphics.draw(image.head, value.x, value.y, 0, self.size / w, self.size / h)
-		-- elseif index == #self.tails then
-		-- 	local w = image.tail:getWidth()
-		-- 	local h = image.tail:getHeight()
-		-- 	love.graphics.draw(image.tail, value.x, -value.y, 0, self.size / w, self.size / h)
-		-- else
-		-- 	local w = image.body:getWidth()
-		-- 	local h = image.body:getHeight()
-		-- 	love.graphics.draw(image.body, value.x, value.y, 0, self.size / w, self.size / h)
-		-- end
-	end
-end
+		if index == 1 then
+			position = self:_getImagePosition(index, image.head, "head")
+			img = image.head
+		elseif index == #self.tails then
+			position = self:_getImagePosition(index, image.tail, "tail")
+			img = image.tail
+		else
+			position = self:_getImagePosition(index, image.body, "body")
+			img = image.body
+		end
 
----@param segmentType string
----@return number
-function snake:_getRotation(segmentType)
-	local isTail = segmentType == "tail"
-	local direction = self.direction
-
-	if isTail == true then
-		if direction == "right" then
-			direction = "left"
-		elseif direction == "left" then
-			direction = "right"
-		elseif direction == "up" then
-			direction = "down"
-		elseif direction == "down" then
-			direction = "up"
+		if position ~= nil and img ~= nil then
+			love.graphics.draw(
+				img,
+				tail.x, tail.y,
+				position.r,
+				position.sx, position.sy,
+				position.ox, position.oy
+			)
 		end
 	end
-
-	if direction == "right" then
-		return math.pi / 2
-	elseif direction == "left" then
-		return -math.pi / 2
-	elseif direction == "up" then
-		return 0
-	elseif direction == "down" then
-		return math.pi
-	end
-
-	return -1
 end
 
 ---@param food food
@@ -122,58 +97,138 @@ function snake:setScore(score)
 	self.score = score
 end
 
+---@param tail { x: number, y: number }
+---@param prevTail { x: number, y: number }
+---@return string
+function snake:_detectDirection(tail, prevTail)
+	if prevTail.x < tail.x then
+		return "right"
+	elseif prevTail.x > tail.x then
+		return "left"
+	elseif prevTail.y > tail.y then
+		return "up"
+	elseif prevTail.y < tail.y then
+		return "down"
+	end
+	return self.direction
+end
+
+function snake:_flipDirection()
+	if self.direction == "right" then
+		return "left"
+	elseif self.direction == "left" then
+		return "right"
+	elseif self.direction == "up" then
+		return "down"
+	elseif self.direction == "down" then
+		return "up"
+	end
+
+	return self.direction
+end
+
+---@param tailID number
+---@param img love.Image
+---@param segmentType string
+---@return {r: number, sx: number, sy: number, ox: number, oy: number}
+function snake:_getImagePosition(tailID, img, segmentType)
+	local direction = self.direction
+
+	local w = img:getWidth()
+	local h = img:getHeight()
+
+	local tail = self.tails[tailID]
+	local prevTail = self.tails[tailID - 1]
+	local out = { r = 0, sx = self.size / w, sy = self.size / h, ox = 0, oy = 0 }
+
+	if prevTail ~= nil then
+		direction = snake:_detectDirection(tail, prevTail)
+	end
+
+	-- if segmentType == "tail" then
+	-- 	direction = snake:_flipDirection()
+	-- end
+
+	if direction == "right" then
+		out.r = math.pi / 2
+		out.ox = 0
+		out.oy = h
+	elseif direction == "left" then
+		out.r = -math.pi / 2
+		out.ox = w
+		out.oy = 0
+	elseif direction == "up" then
+		out.r = 0
+		out.ox = 0
+		out.oy = 0
+	elseif direction == "down" then
+		out.r = math.pi
+		out.ox = w
+		out.oy = h
+	end
+
+	return out
+end
+
 ---@param direction string
 function snake:setDirection(direction)
+	if self.locked or self.dead == true then return end
+
 	if (direction == "right" and self.direction ~= "left")
 		or (direction == "left" and self.direction ~= "right")
 		or (direction == "up" and self.direction ~= "down")
 		or (direction == "down" and self.direction ~= "up")
 	then
+		self.locked = true
 		self.direction = direction
 	end
 end
 
 ---@param head { x: number, y: number }
-function snake:_moveDown(head)
-	if head.y > screenSize - self.size * 2 then
+---@param value number
+function snake:_moveDown(value, head)
+	if head.y > self.screenSize - self.size * 2 then
 		self.dead = true
 		return
 	end
 
-	local newHead = {x = head.x, y = head.y + self.size}
+	local newHead = {x = head.x, y = head.y + value}
 	snake:_move(newHead)
 end
 
+---@param value number
 ---@param head { x: number, y: number }
-function snake:_moveUp(head)
+function snake:_moveUp(value, head)
 	if head.y < self.size then
 		self.dead = true
 		return
 	end
 
-	local newHead = {x = head.x, y = head.y - self.size}
+	local newHead = {x = head.x, y = head.y - value}
 	snake:_move(newHead)
 end
 
+---@param value number
 ---@param head { x: number, y: number }
-function snake:_moveLeft(head)
+function snake:_moveLeft(value, head)
 	if head.x < self.size then
 		self.dead = true
 		return
 	end
 
-	local newHead = {x = head.x - self.size, y = head.y}
+	local newHead = {x = head.x - value, y = head.y}
 	snake:_move(newHead)
 end
 
+---@param value number
 ---@param head { x: number, y: number }
-function snake:_moveRight(head)
-	if head.x > screenSize - self.size * 2 then
+function snake:_moveRight(value, head)
+	if head.x > self.screenSize - self.size * 2 then
 		self.dead = true
 		return
 	end
 
-	local newHead = {x = head.x + self.size, y = head.y}
+	local newHead = {x = head.x + value, y = head.y}
 	snake:_move(newHead)
 end
 
@@ -191,7 +246,6 @@ end
 ---@param head { x: number, y: number }
 function snake:_move(head)
 	if snake:_checkTailCollision(head) == true then return end
-
 	snake:_insertHead(head)
 	snake:_removeTail()
 end
@@ -206,42 +260,26 @@ function snake:_checkTailCollision(head)
 	return false
 end
 
-function snake:_newTail()
-	local tail = self.tails[#self.tails]
-	local secondTail = self.tails[#self.tails - 1]
-
-	local newTail = {x = tail.x + self.size, y = tail.y}
-	-- NOTE: maybe better approach? this is just checking in what direction it should add the tail. If the tail is in vertical line it should add next tail en vertical line too.
-	if secondTail ~= nil then
-		if tail.y > secondTail.y or secondTail.y > tail.y then
-			newTail = {x = tail.x, y = tail.y + self.size}
-		end
-	end
-
-	table.insert(self.tails, #self.tails+1, newTail)
-	self.food:update(self.tails)
-	self.score:update()
-end
-
 function snake:_eat()
 	if self.dead then return end
 
 	local head = self.tails[1]
 	if head.x == self.food.pos and head.y == self.food.pos then
-		snake:_newTail()
+		local tail = self.tails[#self.tails]
+		local secondTail = self.tails[#self.tails - 1]
+
+		local newTail = {x = tail.x + self.size, y = tail.y}
+		-- NOTE: maybe better approach? this is just checking in what direction it should add the tail. If the tail is in vertical line it should add next tail en vertical line too.
+		if secondTail ~= nil then
+			if tail.y > secondTail.y or secondTail.y > tail.y then
+				newTail = {x = tail.x, y = tail.y + self.size}
+			end
+		end
+
+		table.insert(self.tails, #self.tails+1, newTail)
+		self.food:update(self.tails)
+		self.score:update()
 	end
 end
-
--- function snake:_drawHead()
--- 	if self.direction == "right" then
--- 		love.graphics.draw(headImages.head, self.tails[1].x, self.tails[1].y, 0, 1, 1, self.size/2, self.size/2)
--- 	elseif self.direction == "left" then
--- 		love.graphics.draw(headImages.head, self.tails[1].x, self.tails[1].y, 0, 1, 1, self.size/2, self.size/2)
--- 	elseif self.direction == "up" then
--- 		love.graphics.draw(headImages.head, self.tails[1].x, self.tails[1].y, 0, 1, 1, self.size/2, self.size/2)
--- 	elseif self.direction == "down" then
--- 		love.graphics.draw(headImages.head, self.tails[1].x, self.tails[1].y, 0, 1, 1, self.size/2, self.size/2)
--- 	end
--- end
 
 return snake
