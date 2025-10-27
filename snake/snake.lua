@@ -65,13 +65,13 @@ function snake:draw()
 		local img = nil
 
 		if index == 1 then
-			position = self:_getImagePosition(index, image.head, "head")
+			position = self:_getImagePosition(index, image.head)
 			img = image.head
 		elseif index == #self.tails then
-			position = self:_getImagePosition(index, image.tail, "tail")
+			position = self:_getImagePosition(index, image.tail)
 			img = image.tail
 		else
-			position = self:_getImagePosition(index, image.body, "body")
+			position = self:_getImagePosition(index, image.body)
 			img = image.body
 		end
 
@@ -97,6 +97,20 @@ function snake:setScore(score)
 	self.score = score
 end
 
+function snake:_flipDirection(direction)
+	if direction == "right" then
+		return "left"
+	elseif direction == "left" then
+		return "right"
+	elseif direction == "up" then
+		return "down"
+	elseif direction == "down" then
+		return "up"
+	end
+
+	return direction
+end
+
 ---@param tail { x: number, y: number }
 ---@param prevTail { x: number, y: number }
 ---@return string
@@ -110,44 +124,32 @@ function snake:_detectDirection(tail, prevTail)
 	elseif prevTail.y < tail.y then
 		return "down"
 	end
-	return self.direction
-end
-
-function snake:_flipDirection()
-	if self.direction == "right" then
-		return "left"
-	elseif self.direction == "left" then
-		return "right"
-	elseif self.direction == "up" then
-		return "down"
-	elseif self.direction == "down" then
-		return "up"
-	end
 
 	return self.direction
 end
 
 ---@param tailID number
 ---@param img love.Image
----@param segmentType string
 ---@return {r: number, sx: number, sy: number, ox: number, oy: number}
-function snake:_getImagePosition(tailID, img, segmentType)
+function snake:_getImagePosition(tailID, img, isTail)
 	local direction = self.direction
-
 	local w = img:getWidth()
 	local h = img:getHeight()
 
 	local tail = self.tails[tailID]
 	local prevTail = self.tails[tailID - 1]
-	local out = { r = 0, sx = self.size / w, sy = self.size / h, ox = 0, oy = 0 }
+
+	local out = {
+		r = 0,
+		sx = self.size / w,
+		sy = self.size / h,
+		ox = 0,
+		oy = 0,
+	}
 
 	if prevTail ~= nil then
-		direction = snake:_detectDirection(tail, prevTail)
+		direction = self:_detectDirection(tail, prevTail)
 	end
-
-	-- if segmentType == "tail" then
-	-- 	direction = snake:_flipDirection()
-	-- end
 
 	if direction == "right" then
 		out.r = math.pi / 2
@@ -191,9 +193,8 @@ function snake:_moveDown(value, head)
 		self.dead = true
 		return
 	end
-
 	local newHead = {x = head.x, y = head.y + value}
-	snake:_move(newHead)
+	self:_move(newHead)
 end
 
 ---@param value number
@@ -203,9 +204,8 @@ function snake:_moveUp(value, head)
 		self.dead = true
 		return
 	end
-
 	local newHead = {x = head.x, y = head.y - value}
-	snake:_move(newHead)
+	self:_move(newHead)
 end
 
 ---@param value number
@@ -215,9 +215,8 @@ function snake:_moveLeft(value, head)
 		self.dead = true
 		return
 	end
-
 	local newHead = {x = head.x - value, y = head.y}
-	snake:_move(newHead)
+	self:_move(newHead)
 end
 
 ---@param value number
@@ -227,9 +226,8 @@ function snake:_moveRight(value, head)
 		self.dead = true
 		return
 	end
-
 	local newHead = {x = head.x + value, y = head.y}
-	snake:_move(newHead)
+	self:_move(newHead)
 end
 
 ---@param head { x: number, y: number }
@@ -245,9 +243,9 @@ end
 
 ---@param head { x: number, y: number }
 function snake:_move(head)
-	if snake:_checkTailCollision(head) == true then return end
-	snake:_insertHead(head)
-	snake:_removeTail()
+	if self:_checkTailCollision(head) == true then return end
+	self:_insertHead(head)
+	self:_removeTail()
 end
 
 ---@param head { x: number, y: number }
@@ -264,16 +262,19 @@ function snake:_eat()
 	if self.dead then return end
 
 	local head = self.tails[1]
+
 	if head.x == self.food.pos and head.y == self.food.pos then
 		local tail = self.tails[#self.tails]
-		local secondTail = self.tails[#self.tails - 1]
+		local beforeTail = self.tails[#self.tails - 1]
 
-		local newTail = {x = tail.x + self.size, y = tail.y}
-		-- NOTE: maybe better approach? this is just checking in what direction it should add the tail. If the tail is in vertical line it should add next tail en vertical line too.
-		if secondTail ~= nil then
-			if tail.y > secondTail.y or secondTail.y > tail.y then
-				newTail = {x = tail.x, y = tail.y + self.size}
-			end
+		local newTail = { x = tail.x + self.size, y = tail.y }
+
+		if beforeTail.x > tail.x then
+			newTail = { x = tail.x - self.size, y = tail.y }
+		elseif beforeTail.y > tail.y then
+			newTail = { x = tail.x, y = tail.y - self.size }
+		elseif beforeTail.y < tail.y then
+			newTail = { x = tail.x, y = tail.y + self.size }
 		end
 
 		table.insert(self.tails, #self.tails+1, newTail)
